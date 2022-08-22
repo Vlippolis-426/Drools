@@ -1,0 +1,31 @@
+package io.github.aasaru.drools.DrivingSession
+import io.github.aasaru.drools.domain.DriveTimeExceeded;
+import io.github.aasaru.drools.domain.Week;
+
+import io.github.aasaru.drools.domain.Drive;
+import java.time.LocalDate;
+
+rule "Exceed max driving time"
+	dialect "java"
+	when
+		$drive: Drive(drivingTime>540)
+
+	then
+		System.out.println("Added drive time exceeded to drive  " +  $drive);
+		insertLogical(new DriveTimeExceeded($drive));
+
+end
+
+rule "Extensions over regular driving time"
+    dialect "java"
+    when
+        $drive: Drive(drivingTime>540, drivingTime<=600)
+        $week: Week(drivingTimeExceeded<2)
+    then
+        modify($drive){
+            drivingTime-=60;
+        };
+        System.out.println("Exceeded drive "+$drive);
+
+
+end
