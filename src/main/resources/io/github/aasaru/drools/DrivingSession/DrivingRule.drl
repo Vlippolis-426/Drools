@@ -1,31 +1,78 @@
 package io.github.aasaru.drools.DrivingSession
 import io.github.aasaru.drools.domain.DriveTimeExceeded;
 import io.github.aasaru.drools.domain.Week;
+import io.github.aasaru.drools.domain.InvalidWeek;
 
 import io.github.aasaru.drools.domain.Drive;
 import java.time.LocalDate;
 
-rule "Exceed max driving time"
+rule "Exceed max 9 hours driving time"
 	dialect "java"
 	when
-		$drive: Drive(drivingTime>540)
+		$week: Week( )
+		$day: Day(totalDayliDrivingTime()>540, totalDayliDrivingTime()<=600)
+
 
 	then
-		System.out.println("Added drive time exceeded to drive  " +  $drive);
-		insertLogical(new DriveTimeExceeded($drive));
+		System.out.println("Day exceeededs Daily Driving Time  " +  $day);
+        modify($week){
+        countDrivingTimeExceeded++;}
 
+        System.out.println("CountExceeded= " + $week.countDrivingTimeExceeded);
 end
 
-rule "Extensions over regular driving time"
+rule "Max drive Exceeded a week "
+
     dialect "java"
     when
-        $drive: Drive(drivingTime>540, drivingTime<=600)
-        $week: Week(drivingTimeExceeded<2)
+        $week: Week(countDrivingTimeExceeded>2)
+        not(InvalidWeek(this.getWeek() == $week))
     then
-        modify($drive){
-            drivingTime-=60;
-        };
-        System.out.println("Exceeded drive "+$drive);
+        System.out.println("Invalid week");
 
+        insert(new InvalidWeek($week));
 
 end
+
+rule "Invalid Drive More than 10 hours"
+
+    dialect "java"
+    when
+        $day: Day(totalDayliDrivingTime()>600)
+        $week: Week(dayList.contains($day))
+        not(InvalidWeek(this.getWeek() == $week))
+
+
+    then
+         System.out.println("Invalid week, more than 10 hours in day " + $day);
+         System.out.println("Dopo le 10 ore" + $week.countDrivingTimeExceeded);
+         insert(new InvalidWeek($week));
+
+end
+
+rule "Max weekly Driving total time"
+    dialect "java"
+    when
+        $week: Week(this.weeklyDrivingTime()>3360)
+        not(InvalidWeek(this.getWeek() == $week))
+
+    then
+        System.out.println("Invalid Week, because the weekly driving time exceeds the 56 hours");
+        insert (new InvalidWeek($week));
+
+end
+
+rule "Max driving session 4:30 hours"
+    dialect "java"
+    when
+        $week: Week()
+
+    then
+
+
+
+
+
+
+
+

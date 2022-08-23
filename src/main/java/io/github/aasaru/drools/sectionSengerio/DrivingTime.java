@@ -28,6 +28,7 @@ public class DrivingTime {
 
     KieSession ksession = KieServices.Factory.get().getKieClasspathContainer().newKieSession("DrivingTime");
     List<Drive> drives = SengerioRepository.getDrive();
+    Week week;
 
     public DrivingTime() {
         ksession.addEventListener(new RuleRuntimeEventListener() {
@@ -53,7 +54,17 @@ public class DrivingTime {
 
         DrivingTime dT = new DrivingTime();
 
+        SengerioRepository.loadDay();
+
+
+
         dT.drives.forEach(dT.ksession::insert);
+        dT.week=new Week(dT.drives, SengerioRepository.dayList);
+        dT.ksession.insert(dT.week);
+        dT.ksession.insert(SengerioRepository.dayList.get(0));
+        dT.ksession.insert(SengerioRepository.dayList.get(1));
+        dT.ksession.insert(SengerioRepository.dayList.get(2));
+
         System.out.println("==== DROOLS SESSION START ==== ");
 
         dT.ksession.fireAllRules();

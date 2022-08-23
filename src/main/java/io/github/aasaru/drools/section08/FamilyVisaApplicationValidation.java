@@ -28,7 +28,7 @@ public class FamilyVisaApplicationValidation {
     System.out.println("Running step " + step);
     KieSession ksession = KieServices.Factory.get().getKieClasspathContainer().newKieSession("FamilyVisaApplicationStep" + step);
 
-    List<Passport> passports = ApplicationRepository.getPassports();
+    List<Passport> passports = ApplicationRepository.getPassports();//Prima si crea i singoli oggetti passaporto per ogni membro della famiglia
     passports.forEach(ksession::insert);
 
     if (step == 3) {
@@ -39,7 +39,7 @@ public class FamilyVisaApplicationValidation {
       }
     }
 
-    List<FamilyVisaApplication> familyVisaApplications = ApplicationRepository.getFamilyVisaApplications();
+    List<FamilyVisaApplication> familyVisaApplications = ApplicationRepository.getFamilyVisaApplications();//Dopo si creano dei gruppo famigliari di passaporti
     familyVisaApplications.forEach(ksession::insert);
 
     System.out.println("==== DROOLS SESSION START ==== ");
