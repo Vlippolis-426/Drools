@@ -6,22 +6,34 @@ import io.github.aasaru.drools.domain.InvalidWeek;
 import io.github.aasaru.drools.domain.Drive;
 import java.time.LocalDate;
 
-rule "Exceed max driving time"
+import io.github.aasaru.drools.domain.Day;
+import io.github.aasaru.drools.domain.Rest;
+import io.github.aasaru.drools.domain.Break;
+import io.github.aasaru.drools.domain.InvalidDay;
+
+
+
+/*rule "1.1)Exceed max 9 hours driving time, but it is in 10 hours range"
+
 	dialect "java"
 	when
-		$week: Week( )
-		$drive: Drive(drivingTime>540, drivingTime<=600)
+		$day: Day(totalDailyDrivingTime()>540, totalDailyDrivingTime()<=600)
+		$week: Week(dayList.contains($day))
+		not(InvalidWeek(this.getWeek() == $week))
+
 
 
 	then
-		System.out.println("Added drive time exceeded to drive  " +  $drive );
+		System.out.println("Day exceeds Daily Driving Time  " +  $day);
         modify($week){
         countDrivingTimeExceeded++;}
 
         System.out.println("CountExceeded= " + $week.countDrivingTimeExceeded);
 end
 
-rule "Max drive Exceeded a week "
+
+
+rule "1.2) Max drive Exceeded a week "
 
     dialect "java"
     when
@@ -29,28 +41,32 @@ rule "Max drive Exceeded a week "
         not(InvalidWeek(this.getWeek() == $week))
     then
         System.out.println("Invalid week");
-
         insert(new InvalidWeek($week));
 
 end
 
-rule "Invalid Drive More than 10 hours"
+
+
+rule "1.3) Invalid Drive More than 10 hours"
 
     dialect "java"
+
     when
-        $drive: Drive(drivingTime>600)
-        $week: Week(driveList.contains($drive))
+        $day: Day(totalDailyDrivingTime()>600)
+        $week: Week(dayList.contains($day))
         not(InvalidWeek(this.getWeek() == $week))
 
 
     then
-         System.out.println("Invalid week, more than 10 hours");
+         System.out.println("Invalid week, more than 10 hours in day " + $day);
          System.out.println("Dopo le 10 ore" + $week.countDrivingTimeExceeded);
          insert(new InvalidWeek($week));
 
 end
 
-rule "Max weekly Driving time"
+
+
+rule "2) Max weekly Driving total time"
     dialect "java"
     when
         $week: Week(this.weeklyDrivingTime()>3360)
@@ -64,8 +80,132 @@ end
 
 
 
+rule "3) 90 hours in 2 weeks"
+    dialect "java"
+    when
+        $week1: Week()
+        $week2: Week(this.isConsecutive($week1), (this.weeklyDrivingTime()+$week1.weeklyDrivingTime())>5400)
+        not(InvalidWeek(this.getWeek()==$week1))
+        not(InvalidWeek(this.getWeek()==$week2))
+        not(Drive(this.getBreak==null))
+
+    then
+        System.out.println("Invalid Week, found two consecutive weeks with more than 90 hours of driving");
+        insert(new InvalidWeek($week1));
+        insert(new InvalidWeek($week2));
+
+
+end
 
 
 
+rule "4.1) Max driving session 4:30 hours"
+    dialect "java"
+    when
+        $day: Day()
+        $week: Week(dayList.contains($day))
+        $drive: Drive(deltaTime>270) from $day.getDailyDrive()
+        not(InvalidWeek(this.getWeek()==$week))
+        not(Drive(this.getBreak==null))
+
+    then
+        System.out.println("Invalid Week, found a session which is more than 4:30 hours");
+        insert(new InvalidWeek($week));
+end
+*/
 
 
+rule "4.2) After 4:30 driving time driver must do 45 rest minutes"
+    dialect "java"
+    when
+        $day: Day()
+        $week: Week()
+        $drive: Drive(deltaTime<=270) from $day.getDailyDrive()
+        not(Drive(this.getBreak!=null))
+
+    then
+        System.out.println("Inserted a new break of 45 minutes");
+
+        Break breakObj = new Break();
+        breakObj.setStart($drive.getEnd());
+        breakObj.setEnd($drive.getEnd().plusMinutes(45));
+
+        //Aggiunta della pausa all'interno del giorno e della specifica guida
+        $day.getBreakList().add(breakObj);
+        $drive.setBreak(breakObj);
+
+
+        insert(breakObj);
+
+end
+
+
+rule "4.3) Not overlapping between Drives and Rests"
+    dialect "java"
+    no-loop
+    when
+        $day: Day()
+        $break: Break()
+        $drive: Drive()
+
+        Day($drive memberOf this.getDailyDrive(), $break memberOf this.getBreakList(), $drive.getStart().isAfter($break.getStart()),$break.getStart().isBefore($break.getEnd()))
+        not(InvalidDay(this.getDay()==$day))
+        not(Drive(this.getBreak==null))
+
+    then
+        System.out.println("Invalided day " + $day + ", because there's an overlapping between Drives and Rests");
+        insertLogical(new InvalidDay($day));
+
+end
+
+rule "4.4) 15 minutes and 30 minutes of break"
+    dialect "java"
+    when
+        $day: Day()
+
+        $drive1: Drive(this memberOf $day.getDailyDrive())
+        $drive2: Drive(this memberOf $day.getDailyDrive(), this.isConsecutive($drive1, $day.getDailyDrive()), (this.deltaTime()+$drive1.deltaTime())<=270)
+
+        not(Drive($drive1.getBreak()!=null))
+        not(Drive($drive2.getBreak()!=null))
+
+    then
+
+        System.out.println("Inserted 2 breaks: 15 minutes and 30 minutes");
+
+        Break breakObj15 = new Break();
+        Break breakObj30 = new Break();
+
+        breakObj15.setStart($drive1.getEnd());
+        breakObj15.setEnd($drive1.getEnd().plusMinutes(15));
+
+        breakObj30.setStart($drive2.getEnd());
+        breakObj30.setEnd($drive2.getEnd().plusMinutes(30));
+
+        $drive1.setBreak(breakObj15);
+        $drive2.setBreak(breakObj30);
+
+        $day.getBreakList().add(breakObj15);
+        $day.getBreakList().add(breakObj30);
+
+
+
+        insert(breakObj15);
+        insert(breakObj30);
+end
+
+/*rule "5) Within 24 hours of the end of a daily/weekly rest, another daily rest must be taken"
+    dialect "java"
+    when
+        $lastRest: Rest()
+        $day: Day($lastRest memberOf this.getDailyRestList()||$lastRest memberOf this.getWeeklyRestList())
+        $week: Week($day memberOf daiList)
+        not(DailyRest(this.isDailyRest(), this.getStart().isAfter($lastRest.getEnd()), this.getStart().isBefore($lastRest.getEnd().plusHours(24)))
+        not(Drive(this.getBreak()))
+
+
+    then
+        System.out.println("Invalid week: there isn't a daily rest within 24 hours after the end of another daily/weekly rest");
+        insert(new InvalidWeek($week));
+
+end*/
